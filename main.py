@@ -63,7 +63,9 @@ def get_radom_poly(max_degree: int, max_coefficient: int):
 if __name__ == '__main__':
 
     """
-    This is the polynomial use as example in the book 'J., Thaler, Proofs, Arguments, and Zero-Knowledge., 2023 page 36'. Note that to get the same results you need to modify the get_random function to return the same values as the book.
+    This is the polynomial used as example in the book 'J., Thaler, Proofs, Arguments, and
+    Zero-Knowledge., 2023 page 36'. Note that to get the same results you need to modify the get_random
+    function to return the same values as the book.
     """
     # variables = ['x1', 'x2', 'x3']
     # poly_expresion = '2*x1**3 + x1*x3 + x2*x3'
