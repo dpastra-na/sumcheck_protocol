@@ -24,14 +24,16 @@ class MultilinearPolynomial:
             result = result + term_value
         return result
 
-    def partial_evaluate(self, variable_index: int, value: FieldElement) -> "MultilinearPolynomial":
+    def partial_evaluate(
+        self, variable_index: int, value: FieldElement
+    ) -> "MultilinearPolynomial":
         new_terms: list[Term] = []
         for term in self.terms:
             new_coeff = term.coefficient
             new_vars: dict[int, int] = {}
             for var_idx, exp in term.variables.items():
                 if var_idx == variable_index:
-                    new_coeff = new_coeff * (value ** exp)
+                    new_coeff = new_coeff * (value**exp)
                 elif var_idx > variable_index:
                     new_vars[var_idx - 1] = exp
                 else:
@@ -41,7 +43,7 @@ class MultilinearPolynomial:
 
     def sum_over_boolean_hypercube(self) -> FieldElement:
         result = FieldElement(0, self.prime)
-        for point in range(2 ** self.num_variables):
+        for point in range(2**self.num_variables):
             bits = format(point, "b").zfill(self.num_variables)
             assignment = [FieldElement(int(b), self.prime) for b in bits]
             result = result + self.evaluate(assignment)
@@ -55,9 +57,11 @@ class MultilinearPolynomial:
                     deg = exp
         return deg
 
-    def to_univariate(self, round_index: int, challenges: list[FieldElement]) -> list[FieldElement]:
+    def to_univariate(
+        self, round_index: int, challenges: list[FieldElement]
+    ) -> list[FieldElement]:
         reduced = self
-        for i, challenge in enumerate(challenges):
+        for challenge in challenges:
             reduced = reduced.partial_evaluate(0, challenge)
 
         num_free = reduced.num_variables - 1
@@ -68,7 +72,10 @@ class MultilinearPolynomial:
         for t in range(eval_points):
             t_val = FieldElement(t, self.prime)
             fixed_t = reduced.partial_evaluate(0, t_val)
-            values[t] = fixed_t.sum_over_boolean_hypercube() if num_free > 0 else fixed_t.evaluate([])
+            if num_free > 0:
+                values[t] = fixed_t.sum_over_boolean_hypercube()
+            else:
+                values[t] = fixed_t.evaluate([])
         return _interpolate(values, self.prime)
 
 
@@ -88,7 +95,8 @@ def _interpolate(values: list[FieldElement], prime: int) -> list[FieldElement]:
             inv_denom = FieldElement(1, prime) / denom
             new_basis = [FieldElement(0, prime)] * n
             for k in range(n - 1, -1, -1):
-                new_basis[k] = new_basis[k] + basis_coeffs[k] * (FieldElement(0, prime) - xj) * inv_denom
+                neg_xj = FieldElement(0, prime) - xj
+                new_basis[k] = new_basis[k] + basis_coeffs[k] * neg_xj * inv_denom
                 if k + 1 < n:
                     new_basis[k + 1] = new_basis[k + 1] + basis_coeffs[k] * inv_denom
             basis_coeffs = new_basis

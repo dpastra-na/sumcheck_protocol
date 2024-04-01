@@ -1,7 +1,6 @@
 from field import FieldElement
 from polynomial import MultilinearPolynomial, Term
 
-
 PRIME = 97
 
 
@@ -12,9 +11,9 @@ def _fe(v: int) -> FieldElement:
 def _thaler_polynomial() -> MultilinearPolynomial:
     """g(x0, x1, x2) = 2*x0^3 + x0*x2 + x1*x2 over F_97."""
     terms = [
-        Term(_fe(2), {0: 3}),       # 2*x0^3
-        Term(_fe(1), {0: 1, 2: 1}), # x0*x2
-        Term(_fe(1), {1: 1, 2: 1}), # x1*x2
+        Term(_fe(2), {0: 3}),  # 2*x0^3
+        Term(_fe(1), {0: 1, 2: 1}),  # x0*x2
+        Term(_fe(1), {1: 1, 2: 1}),  # x1*x2
     ]
     return MultilinearPolynomial(terms, num_variables=3, prime=PRIME)
 

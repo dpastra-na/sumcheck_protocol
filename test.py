@@ -1,6 +1,8 @@
 import unittest
+
 import sympy as sp
-from main import get_sum, check
+
+from main import check, get_sum
 
 
 class TestSumCheckFunctions(unittest.TestCase):

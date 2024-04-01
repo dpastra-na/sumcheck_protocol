@@ -1,5 +1,5 @@
-import sympy as sp
 import numpy as np
+import sympy as sp
 
 
 def get_sum(p: sp.Poly, n_var: int, variables: list[str], r: dict = {}) -> sp.Poly:

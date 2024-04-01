@@ -7,5 +7,22 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.5.1",
     "pytest>=9.0.2",
+    "ruff>=0.15.8",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = ["main.py", "test.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
 ]
