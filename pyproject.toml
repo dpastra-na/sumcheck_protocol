@@ -15,7 +15,6 @@ dev = [
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-exclude = ["main.py", "test.py"]
 
 [tool.ruff.lint]
 select = [

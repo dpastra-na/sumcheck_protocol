@@ -1,76 +1,120 @@
-import numpy as np
-import sympy as sp
+import logging
+import random
+
+from field import FieldElement, random_field_element
+from polynomial import MultilinearPolynomial, Term
+from sumcheck import Prover, Verifier
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+log = logging.getLogger(__name__)
+
+PRIME = 97
 
 
-def get_sum(p: sp.Poly, n_var: int, variables: list[str], r: dict = {}) -> sp.Poly:
-    sub_p = 0
-    for point in range(2**n_var):
-        point = format(point, "b").zfill(n_var)
-        assignments = {}
-        for bit, var in zip(point, variables):
-            assignments[var] = bit
-        # print(assignments)
-
-        sub_p += p.subs(assignments)
-    if r:
-        sub_p = sub_p.subs(r)
-    return sub_p
+def _fe(v: int) -> FieldElement:
+    return FieldElement(v, PRIME)
 
 
-def get_random(r: dict, variable: str, N: int) -> None:
-    # v = [2, 3, 6]
-    # r[variable] = v[i]
-    r[variable] = np.random.randint(N)
+def thaler_example() -> MultilinearPolynomial:
+    """g(x0, x1, x2) = 2*x0^3 + x0*x2 + x1*x2 over F_97.
 
-
-def check(s_n1: sp.Poly, s_n: sp.Poly, n_var: int, variables: list[str], r: dict = {}):
-    return get_sum(s_n1, n_var, variables) == s_n.subs(r)
-
-
-def sumcheck(p: sp.Poly, N: int = 10) -> None:
-    r = {}
-    s_n = get_sum(p, len(variables), variables)
-    for iterration in range(len(variables) + 1):
-
-        try:
-            var = variables.pop(0)
-            s_n1 = get_sum(p, len(variables), variables, r)
-            print('iteration:', iterration, s_n, s_n1, r)
-            assert check(s_n1, s_n, 1, [var], r), 'SUMCHECK FAILED!'
-            get_random(r, var, N)
-            s_n = s_n1
-        except IndexError:
-            s_n = s_n1
-            s_n1 = p.subs(r)
-            print('iteration:', iterration, s_n, s_n1)
-            assert check(s_n1, s_n, 0, [], r), 'SUMCHECK FAILED!'
-    print('SUMCHECK PASSED!')
-
-
-def get_radom_poly(max_degree: int, max_coefficient: int):
-    variables = [sp.Symbol(f'x{i}') for i in range(1, 11)]
-
-    random_poly = 0
-    for var in variables:
-        for degree in range(max_degree + 1):
-            random_coefficient = np.random.randint(
-                -max_coefficient, max_coefficient)
-            random_poly += random_coefficient * (var ** degree)
-    print(random_poly)
-    return sp.Poly(random_poly, variables), variables
-
-
-if __name__ == '__main__':
-
+    Example from Thaler, "Proofs, Arguments, and Zero-Knowledge", 2023, p.36.
     """
-    This is the polynomial used as example in the book 'J., Thaler, Proofs, Arguments, and
-    Zero-Knowledge., 2023 page 36'. Note that to get the same results you need to modify the get_random
-    function to return the same values as the book.
-    """
-    # variables = ['x1', 'x2', 'x3']
-    # poly_expresion = '2*x1**3 + x1*x3 + x2*x3'
-    # x1, x2, x3, = sp.symbols(' '.join(variables))
-    # p = sp.Poly(eval(poly_expresion), x1, x2, x3)
+    terms = [
+        Term(_fe(2), {0: 3}),
+        Term(_fe(1), {0: 1, 2: 1}),
+        Term(_fe(1), {1: 1, 2: 1}),
+    ]
+    return MultilinearPolynomial(terms, num_variables=3, prime=PRIME)
 
-    p, variables = get_radom_poly(max_degree=7, max_coefficient=10)
-    sumcheck(p, N=10)
+
+def random_polynomial(
+    num_variables: int, max_degree: int, num_terms: int, prime: int
+) -> MultilinearPolynomial:
+    terms: list[Term] = []
+    for _ in range(num_terms):
+        coeff = random_field_element(prime)
+        variables: dict[int, int] = {}
+        for var_idx in range(num_variables):
+            exp = random.randint(0, max_degree)
+            if exp > 0:
+                variables[var_idx] = exp
+        terms.append(Term(coeff, variables))
+    return MultilinearPolynomial(terms, num_variables=num_variables, prime=prime)
+
+
+def run_verbose_protocol(polynomial: MultilinearPolynomial) -> bool:
+    prover = Prover(polynomial)
+    claimed_sum = polynomial.sum_over_boolean_hypercube()
+    verifier = Verifier(
+        num_variables=polynomial.num_variables,
+        prime=polynomial.prime,
+        claimed_sum=claimed_sum,
+    )
+
+    log.info("Sumcheck Protocol")
+    log.info("=================")
+    log.info("Claimed sum H = %s", claimed_sum.value)
+    log.info("Number of variables: %d", polynomial.num_variables)
+    log.info("Field: F_%d", polynomial.prime)
+    log.info("")
+
+    challenges: list[FieldElement] = []
+    expected = claimed_sum
+
+    for round_index in range(polynomial.num_variables):
+        round_poly = prover.compute_round_polynomial(round_index, challenges)
+        coeffs_str = [str(c.value) for c in round_poly]
+        log.info("Round %d:", round_index + 1)
+        log.info("  Prover sends g_%d with coefficients %s", round_index, coeffs_str)
+
+        if not verifier.verify_round(round_poly, expected):
+            log.info(
+                "  Verifier REJECTS: g_%d(0) + g_%d(1) != %s",
+                round_index,
+                round_index,
+                expected.value,
+            )
+            return False
+
+        log.info(
+            "  Verifier checks: g_%d(0) + g_%d(1) == %s  OK",
+            round_index,
+            round_index,
+            expected.value,
+        )
+
+        challenge = verifier.generate_challenge()
+        challenges.append(challenge)
+        log.info("  Verifier sends challenge r_%d = %s", round_index, challenge.value)
+
+        expected = FieldElement(0, polynomial.prime)
+        for degree, coeff in enumerate(round_poly):
+            expected = expected + coeff * (challenge**degree)
+        log.info("")
+
+    oracle_value = polynomial.evaluate(challenges)
+    final_ok = verifier.verify_final(oracle_value, expected)
+    log.info(
+        "Final check: p(%s) = %s, expected %s  %s",
+        [c.value for c in challenges],
+        oracle_value.value,
+        expected.value,
+        "OK" if final_ok else "FAIL",
+    )
+    log.info("")
+
+    if final_ok:
+        log.info("SUMCHECK PASSED")
+    else:
+        log.info("SUMCHECK FAILED")
+
+    return final_ok
+
+
+if __name__ == "__main__":
+    log.info("--- Thaler's example polynomial ---")
+    log.info("g(x0, x1, x2) = 2*x0^3 + x0*x2 + x1*x2 over F_97")
+    log.info("")
+    p = thaler_example()
+    run_verbose_protocol(p)
