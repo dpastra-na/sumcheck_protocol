@@ -1,5 +1,16 @@
 import random
 from dataclasses import dataclass
+from math import isqrt
+
+
+def _is_prime(n: int) -> bool:
+    if n < 2:
+        return False
+    if n < 4:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+    return all(not (n % i == 0 or n % (i + 2) == 0) for i in range(5, isqrt(n) + 1, 6))
 
 
 @dataclass
@@ -8,6 +19,8 @@ class FieldElement:
     prime: int
 
     def __post_init__(self) -> None:
+        if not _is_prime(self.prime):
+            raise ValueError(f"{self.prime} is not a prime number")
         self.value = self.value % self.prime
 
     def _check_same_field(self, other: "FieldElement") -> None:

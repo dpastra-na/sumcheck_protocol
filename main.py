@@ -1,9 +1,9 @@
 import logging
 import random
 
-from field import FieldElement, random_field_element
-from polynomial import MultilinearPolynomial, Term
-from sumcheck import Prover, Verifier
+from sumcheck_protocol.field import FieldElement, random_field_element
+from sumcheck_protocol.polynomial import MultilinearPolynomial, Term
+from sumcheck_protocol.sumcheck import run_protocol
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger(__name__)
@@ -43,78 +43,46 @@ def random_polynomial(
     return MultilinearPolynomial(terms, num_variables=num_variables, prime=prime)
 
 
-def run_verbose_protocol(polynomial: MultilinearPolynomial) -> bool:
-    prover = Prover(polynomial)
-    claimed_sum = polynomial.sum_over_boolean_hypercube()
-    verifier = Verifier(
-        num_variables=polynomial.num_variables,
-        prime=polynomial.prime,
-        claimed_sum=claimed_sum,
-    )
-
-    log.info("Sumcheck Protocol")
-    log.info("=================")
-    log.info("Claimed sum H = %s", claimed_sum.value)
-    log.info("Number of variables: %d", polynomial.num_variables)
-    log.info("Field: F_%d", polynomial.prime)
-    log.info("")
-
-    challenges: list[FieldElement] = []
-    expected = claimed_sum
-
-    for round_index in range(polynomial.num_variables):
-        round_poly = prover.compute_round_polynomial(round_index, challenges)
-        coeffs_str = [str(c.value) for c in round_poly]
-        log.info("Round %d:", round_index + 1)
-        log.info("  Prover sends g_%d with coefficients %s", round_index, coeffs_str)
-
-        if not verifier.verify_round(round_poly, expected):
-            log.info(
-                "  Verifier REJECTS: g_%d(0) + g_%d(1) != %s",
-                round_index,
-                round_index,
-                expected.value,
-            )
-            return False
-
+def log_round(
+    round_index: int,
+    round_poly: list[FieldElement],
+    expected: FieldElement,
+    passed: bool,
+    challenge: FieldElement,
+) -> None:
+    coeffs_str = [str(c.value) for c in round_poly]
+    log.info("Round %d:", round_index + 1)
+    log.info("  Prover sends g_%d with coefficients %s", round_index, coeffs_str)
+    if passed:
         log.info(
             "  Verifier checks: g_%d(0) + g_%d(1) == %s  OK",
             round_index,
             round_index,
             expected.value,
         )
-
-        challenge = verifier.generate_challenge()
-        challenges.append(challenge)
         log.info("  Verifier sends challenge r_%d = %s", round_index, challenge.value)
-
-        expected = FieldElement(0, polynomial.prime)
-        for degree, coeff in enumerate(round_poly):
-            expected = expected + coeff * (challenge**degree)
-        log.info("")
-
-    oracle_value = polynomial.evaluate(challenges)
-    final_ok = verifier.verify_final(oracle_value, expected)
-    log.info(
-        "Final check: p(%s) = %s, expected %s  %s",
-        [c.value for c in challenges],
-        oracle_value.value,
-        expected.value,
-        "OK" if final_ok else "FAIL",
-    )
-    log.info("")
-
-    if final_ok:
-        log.info("SUMCHECK PASSED")
     else:
-        log.info("SUMCHECK FAILED")
-
-    return final_ok
+        log.info(
+            "  Verifier REJECTS: g_%d(0) + g_%d(1) != %s",
+            round_index,
+            round_index,
+            expected.value,
+        )
+    log.info("")
 
 
 if __name__ == "__main__":
     log.info("--- Thaler's example polynomial ---")
     log.info("g(x0, x1, x2) = 2*x0^3 + x0*x2 + x1*x2 over F_97")
     log.info("")
+
     p = thaler_example()
-    run_verbose_protocol(p)
+    log.info("Sumcheck Protocol")
+    log.info("=================")
+    log.info("Claimed sum H = %s", p.sum_over_boolean_hypercube().value)
+    log.info("Number of variables: %d", p.num_variables)
+    log.info("Field: F_%d", p.prime)
+    log.info("")
+
+    result = run_protocol(p, on_round=log_round)
+    log.info("SUMCHECK PASSED" if result else "SUMCHECK FAILED")

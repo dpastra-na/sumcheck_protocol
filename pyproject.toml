@@ -1,7 +1,7 @@
 [project]
 name = "sumcheck-protocol"
 version = "0.1.0"
-description = "Add your description here"
+description = "Didactic implementation of the sumcheck protocol over finite fields"
 requires-python = ">=3.12"
 dependencies = []
 

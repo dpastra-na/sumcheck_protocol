@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from field import FieldElement
+from .field import FieldElement
 
 
 @dataclass
@@ -57,9 +57,7 @@ class MultilinearPolynomial:
                     deg = exp
         return deg
 
-    def to_univariate(
-        self, round_index: int, challenges: list[FieldElement]
-    ) -> list[FieldElement]:
+    def to_univariate(self, challenges: list[FieldElement]) -> list[FieldElement]:
         reduced = self
         for challenge in challenges:
             reduced = reduced.partial_evaluate(0, challenge)

@@ -1,6 +1,6 @@
 import pytest
 
-from field import FieldElement, random_field_element
+from sumcheck_protocol.field import FieldElement, random_field_element
 
 PRIME = 17
 
@@ -140,3 +140,9 @@ def test_random_field_element():
         assert isinstance(e, FieldElement)
         assert e.prime == PRIME
         assert 0 <= e.value < PRIME
+
+
+@pytest.mark.parametrize("composite", [4, 6, 9, 15])
+def test_non_prime_raises(composite):
+    with pytest.raises(ValueError, match="not a prime"):
+        FieldElement(1, composite)

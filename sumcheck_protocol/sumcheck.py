@@ -1,5 +1,16 @@
-from field import FieldElement, random_field_element
-from polynomial import MultilinearPolynomial
+from collections.abc import Callable
+
+from .field import FieldElement, random_field_element
+from .polynomial import MultilinearPolynomial
+
+
+def evaluate_univariate(
+    coeffs: list[FieldElement], point: FieldElement
+) -> FieldElement:
+    result = FieldElement(0, point.prime)
+    for degree, coeff in enumerate(coeffs):
+        result = result + coeff * (point**degree)
+    return result
 
 
 class Prover:
@@ -7,9 +18,9 @@ class Prover:
         self.polynomial = polynomial
 
     def compute_round_polynomial(
-        self, round_index: int, challenges: list[FieldElement]
+        self, challenges: list[FieldElement]
     ) -> list[FieldElement]:
-        return self.polynomial.to_univariate(round_index, challenges)
+        return self.polynomial.to_univariate(challenges)
 
 
 class Verifier:
@@ -23,8 +34,8 @@ class Verifier:
     def verify_round(
         self, round_poly: list[FieldElement], expected: FieldElement
     ) -> bool:
-        g_at_0 = self._evaluate_univariate(round_poly, FieldElement(0, self.prime))
-        g_at_1 = self._evaluate_univariate(round_poly, FieldElement(1, self.prime))
+        g_at_0 = evaluate_univariate(round_poly, FieldElement(0, self.prime))
+        g_at_1 = evaluate_univariate(round_poly, FieldElement(1, self.prime))
         return g_at_0 + g_at_1 == expected
 
     def generate_challenge(self) -> FieldElement:
@@ -33,16 +44,16 @@ class Verifier:
     def verify_final(self, oracle_value: FieldElement, expected: FieldElement) -> bool:
         return oracle_value == expected
 
-    def _evaluate_univariate(
-        self, coeffs: list[FieldElement], point: FieldElement
-    ) -> FieldElement:
-        result = FieldElement(0, self.prime)
-        for degree, coeff in enumerate(coeffs):
-            result = result + coeff * (point**degree)
-        return result
+
+RoundCallback = Callable[
+    [int, list[FieldElement], FieldElement, bool, FieldElement], None
+]
 
 
-def run_protocol(polynomial: MultilinearPolynomial) -> bool:
+def run_protocol(
+    polynomial: MultilinearPolynomial,
+    on_round: RoundCallback | None = None,
+) -> bool:
     prover = Prover(polynomial)
     claimed_sum = polynomial.sum_over_boolean_hypercube()
     verifier = Verifier(
@@ -55,12 +66,18 @@ def run_protocol(polynomial: MultilinearPolynomial) -> bool:
     expected = claimed_sum
 
     for round_index in range(polynomial.num_variables):
-        round_poly = prover.compute_round_polynomial(round_index, challenges)
-        if not verifier.verify_round(round_poly, expected):
-            return False
+        round_poly = prover.compute_round_polynomial(challenges)
+        passed = verifier.verify_round(round_poly, expected)
         challenge = verifier.generate_challenge()
+
+        if on_round:
+            on_round(round_index, round_poly, expected, passed, challenge)
+
+        if not passed:
+            return False
+
         challenges.append(challenge)
-        expected = verifier._evaluate_univariate(round_poly, challenge)
+        expected = evaluate_univariate(round_poly, challenge)
 
     oracle_value = polynomial.evaluate(challenges)
     return verifier.verify_final(oracle_value, expected)
